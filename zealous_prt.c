@@ -26,7 +26,7 @@ void QEnque( siginfo_t sgnfo );
 void QDeque();
 
 static volatile int ilsc = 0;
-static volatile int umrle = 0;
+static volatile int kids = 0;
 
 pid_t grpa = 0;
 
@@ -39,28 +39,33 @@ static void sigHandler( int sig/*, siginfo_t* status, void* sth */)
 
 	while( !( w = waitid( P_PGID, grpa, &st, WSTOPPED | WEXITED | WNOHANG | WCONTINUED )) )
 	{
-	//	memset( &st, 0, sizeof(st) );
-	//	printf("handler inside while \n");
+	memset( &st, 0, sizeof(st) );
+	printf("handler inside while \n");
 	    if( w == -1 )
 	    {
 		     perror( "Something happened to handler waitid \n " );
 		     exit(EXIT_FAILURE);
 	   	}
 		if( st.si_code == CLD_CONTINUED ) 
-			umrle+=1;
+		{
+			kids+=1;
+			printf("\t\tkid continued \n");
+		}
 		else if ( st.si_code == CLD_STOPPED )
 		{
-			printf("kid stopped \n");
-			umrle-=1;
+			printf("\t\tkid stopped \n");
+			kids-=1;
 		}
 		else if( st.si_pid == CLD_KILLED )
 		{
 			printf(" cld_killed \n");
-			umrle-=1;
+			kids-=1;
 			ilsc-=1;
 			//koljka do dzieci
 			QEnque( st );
 		}
+		else
+			 break;
 	}
 }	
 
@@ -90,13 +95,13 @@ int main( int argc, char* argv[] )
 				exit( EXIT_FAILURE );
 		}
 	}
-	ilsc = strtod( argv[optind+1], &wsk );
+	ilsc = strtod( argv[optind], &wsk );
 	if( *wsk )
 	{
 		perror( "Conversion of kids amount (strtod) went wrong \n");
 		exit( EXIT_FAILURE );
 	}
-	grpa = strtod( argv[optind], &wsk );
+	grpa = strtod( argv[optind+1], &wsk );
 	if( *wsk )
 	{
 		perror( "Conversion 2 strtod went wrong \n");
@@ -142,12 +147,15 @@ int main( int argc, char* argv[] )
 	//sleep(1);
 	//grpa = pd2;
 	//ilsc = 1;
-	
+	//printf("ILOSC %d\n",ilsc);
+	//printf("GRUPA %d\n",grpa);
 	int d = 0;
 	do
      {
 		memset( &st, 0, sizeof(siginfo_t) );
-		printf("!!!! grpa, ilsc %d %d \n", grpa, ilsc );
+		
+	//printf("ILOSC 2 %d\n",ilsc);
+	//printf("GRUPA 2 %d\n",grpa);printf("!!!! grpa, ilsc %d %d \n", grpa, ilsc );
 		w = waitid( P_PGID, grpa, &st, WSTOPPED | WEXITED | WNOHANG );
 	    if( w == -1 )
 	    {
@@ -162,13 +170,14 @@ int main( int argc, char* argv[] )
 		{
 			printf( "Child: %d is asleep \n", st.si_pid );
 			d++;
+			printf("signo %d, sistatus %d, si code %d\n", st.si_signo, st.si_status, st.si_code);
+	
 		}
 		//sleep(2);
 	}  while( d < ilsc );
 
-	printf("&&& %d sisigno %d errno %d \n", w, st.si_signo, errno );
-	printf("signo %d, sistatus %d, si code %d\n", st.si_signo, st.si_status, st.si_code);
-		
+	//printf("&&& %d sisigno %d errno %d \n", w, st.si_signo, errno );
+	
 
 // ---- procedure obslugi sygnalu ----
 	
@@ -195,25 +204,30 @@ int main( int argc, char* argv[] )
 	do
 	{
 		printf("drugi while \n");
-		sigwaitinfo( &allSigs, &si );
+		pause(); //sigwaitinfo( &allSigs, &si );
 		while( que )
-			QDeque();
-		
-		if(( umrle == 0 ) && ( ilsc > 0 ))
 		{
+			printf(" NEKROLOGI! \n ");
+			QDeque();
+		}
+		printf(" \t\t\t ile umrl = %d, ilsc = %d \n", kids, ilsc );
+		if(( kids != 0 ) /*&& ( ilsc > 0 )*/)
+		{/*
 			double liczba2 = ( int )( ee *( 1/( pi*pi )));
 			struct timespec req1 = {0};
 			req1.tv_sec = ( int )( liczba2/100 );
 			req1.tv_nsec = ( liczba2 - ( long )req1.tv_sec*100 )* 10000000;
 		
 			nanosleep( &req1, ( struct timespec* )NULL );
-
+*/
+			sleep(1);
 			int kl = kill( -grpa, SIGCONT ); 
 		 	if( kl == -1 )
 			{
 				perror(" Kids did not wake up #2 \n");
 			  	exit( EXIT_FAILURE );
 		 	}
+			printf("RISE AND SHINE! \n");
 		}
 
 	} while( ilsc > 0 );
@@ -224,9 +238,9 @@ int main( int argc, char* argv[] )
 
 void QEnque( siginfo_t sgnfo )
 {	
-	newKid = ( struct Que* )malloc( sizeof( &newKid ));
+	newKid = ( struct Que* )malloc( sizeof( struct Que ));
 	( *newKid ).sgnfo = sgnfo;
-	if( !que )
+	if( que == NULL )
 		Kid = newKid;
 	( *que ).next = newKid;
 	que = newKid;
@@ -239,7 +253,7 @@ void QDeque()
 	if( Kid == NULL )
 		perror( " There is no more kids \n" );
 	newKid = ( *Kid ).next;
-	printf( "Child: %d died[*], killer code: %d, with status:%d \n", Kid->sgnfo.si_pid, Kid->sgnfo.si_code, Kid->sgnfo.si_status  );
+	printf( "Child: %d died, ( killer code: %d ) with status:%d \n", Kid->sgnfo.si_pid, Kid->sgnfo.si_code, Kid->sgnfo.si_status  );
 	free( Kid );
 	Kid = newKid;
 	if( Kid == NULL )

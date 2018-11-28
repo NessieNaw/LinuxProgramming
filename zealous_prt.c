@@ -28,26 +28,31 @@ void QDeque();
 static volatile int ilsc = 0;
 static volatile int umrle = 0;
 
-static void sigHandler( int sig, siginfo_t* status, void* sth )
+pid_t grpa = 0;
+
+static void sigHandler( int sig/*, siginfo_t* status, void* sth */)
 {
 
 	int w;	
 	siginfo_t st;
 	printf("handler!\n");
 
-	while( ( w = waitid( P_ALL, 0, &st, WSTOPPED | WEXITED | WNOHANG ) == 0 ) )
+	while( !( w = waitid( P_PGID, grpa, &st, WSTOPPED | WEXITED | WNOHANG | WCONTINUED )) )
 	{
-		memset( &st, 0, sizeof(st) );
-		printf("handler inside while \n");
+	//	memset( &st, 0, sizeof(st) );
+	//	printf("handler inside while \n");
 	    if( w == -1 )
 	    {
-		     perror( "Something happened to waitid \n " );
+		     perror( "Something happened to handler waitid \n " );
 		     exit(EXIT_FAILURE);
 	   	}
 		if( st.si_code == CLD_CONTINUED ) 
 			umrle+=1;
 		else if ( st.si_code == CLD_STOPPED )
+		{
+			printf("kid stopped \n");
 			umrle-=1;
+		}
 		else if( st.si_pid == CLD_KILLED )
 		{
 			printf(" cld_killed \n");
@@ -61,12 +66,11 @@ static void sigHandler( int sig, siginfo_t* status, void* sth )
 
 int main( int argc, char* argv[] )
 {
-
-	int grpa = 0;
-
+	double pi = M_PI;
+	//pid_t grpa = 0;
 	int opt;
 	double ee = exp(1);
-	int t = 0;
+//	int t = 0;
 	char* wsk = NULL;
 	while(( opt = getopt( argc, argv, "t:" )) != -1 )
     {
@@ -74,34 +78,35 @@ int main( int argc, char* argv[] )
 		{
             case 't': 
 				ee = strtod( optarg, &wsk );
-				if( !wsk )
+				if( *wsk )
 				{
 					perror( "Conversion strtod went wrong \n");
 					exit( EXIT_FAILURE );
 				}
-				ilsc = strtod( argv[3], &wsk );
-				if( !wsk )
-				{
-					perror( "Conversion 1 strtod went wrong \n");
-					exit( EXIT_FAILURE );
-				}
-				grpa = strtod( argv[4], &wsk );
-				if(!wsk)
-				{
-					perror( "Conversion 2 strtod went wrong \n");
-					exit( EXIT_FAILURE );
-				}
-				t = 1;
-		    break;
+			//	t = 1;
+			    break;
 		    default: /* '?' */
 			    fprintf(stderr, "Usage: %s [-t vale] <floats>\n",argv[0] );
-				exit(EXIT_FAILURE);
+				exit( EXIT_FAILURE );
 		}
 	}
-	
+	ilsc = strtod( argv[optind+1], &wsk );
+	if( *wsk )
+	{
+		perror( "Conversion of kids amount (strtod) went wrong \n");
+		exit( EXIT_FAILURE );
+	}
+	grpa = strtod( argv[optind], &wsk );
+	if( *wsk )
+	{
+		perror( "Conversion 2 strtod went wrong \n");
+		exit( EXIT_FAILURE );
+	}
+	;
+
 	for( int i = 0; i <argc; i++ )
 		printf("argv[%d] = %s\n", i, argv[i]);
-	if( t == 0 )
+/*	if( t == 0 )
 	{
 		ilsc = strtod( argv[1], &wsk ); 
 		if( !wsk )
@@ -118,47 +123,68 @@ int main( int argc, char* argv[] )
 		}
 
 	}
+	*/
+	//int grpa2;
 	printf(" ilsoc: %d, grupa: %d optind %d \n", ilsc, grpa,optind );
-	
+	/*
+	int pd2 = fork();
+	if( pd2 == 0 )
+	{
+		int r = setpgid( pd2, 0 );
+		grpa2 = getpgid(0);
+		printf("  %d \n", getpgid(0 ));
+		raise(SIGSTOP);
+		exit(EXIT_SUCCESS);
+	}
+	*/
 	pid_t w;
 	siginfo_t st;
-
+	//sleep(1);
+	//grpa = pd2;
+	//ilsc = 1;
+	
 	int d = 0;
-    while( d < ilsc )
-    {
+	do
+     {
 		memset( &st, 0, sizeof(siginfo_t) );
 		printf("!!!! grpa, ilsc %d %d \n", grpa, ilsc );
 		w = waitid( P_PGID, grpa, &st, WSTOPPED | WEXITED | WNOHANG );
-//	    if( w != -1 )
-//	    {
-//			if(st.si_pid > 0 )
-//				printf("spid %d \n", st.si_pid);
-		     //perror( "Something happened to waitid 1 \n " );
-			 //break;
-  //      }
-		printf("&&& %d sisigno %d errno %d \n", w, st.si_signo, errno );
-		printf("signo %d, sistatus %d, si code %d\n", st.si_signo, st.si_status, st.si_code);
+	    if( w == -1 )
+	    {
+		//	if( st.si_pid > 0 )
+		//		printf( "spid %d \n", st.si_pid );
+		     perror( "Something happened to waitid 1 \n " );
+			 break;
+        }
+		//printf("&&& %d sisigno %d errno %d \n", w, st.si_signo, errno );
+		//printf("signo %d, sistatus %d, si code %d\n", st.si_signo, st.si_status, st.si_code);
 		if( st.si_pid != 0 )
+		{
 			printf( "Child: %d is asleep \n", st.si_pid );
-		d++;
-	}	
+			d++;
+		}
+		//sleep(2);
+	}  while( d < ilsc );
 
+	printf("&&& %d sisigno %d errno %d \n", w, st.si_signo, errno );
+	printf("signo %d, sistatus %d, si code %d\n", st.si_signo, st.si_status, st.si_code);
+		
 
 // ---- procedure obslugi sygnalu ----
 	
 	struct sigaction sa;
 
 	sigemptyset( &sa.sa_mask );
-	//sa.sa_flags = 0;
-	sa.sa_sigaction = &sigHandler;
+	sa.sa_flags = SA_SIGINFO;
+	//sa.sa_sigaction = sigHandler;
 	sa.sa_handler = sigHandler;
 	if( sigaction( SIGCHLD, &sa, NULL ) == -1 )
 	{
-		perror( "sigaction \n");
+		perror( "sigaction failed \n");
 		exit( EXIT_FAILURE );
 	}
 	
-	int kll = killpg( grpa, SIGCONT );
+	int kll = kill( -grpa, SIGCONT );
 	if( kll == -1 )
 	{
 		perror(" Kids did not wake up #1 \n");
@@ -166,16 +192,16 @@ int main( int argc, char* argv[] )
 	}
 	siginfo_t si;
 	sigset_t allSigs;
-	while( ilsc > 0 )
+	do
 	{
 		printf("drugi while \n");
-		pause(); //sigwaitinfo( &allSigs, &si );
+		sigwaitinfo( &allSigs, &si );
 		while( que )
 			QDeque();
 		
-		if( (umrle==0) && (ilsc > 0) )
+		if(( umrle == 0 ) && ( ilsc > 0 ))
 		{
-			double liczba2 = ( int )ee/2;
+			double liczba2 = ( int )( ee *( 1/( pi*pi )));
 			struct timespec req1 = {0};
 			req1.tv_sec = ( int )( liczba2/100 );
 			req1.tv_nsec = ( liczba2 - ( long )req1.tv_sec*100 )* 10000000;
@@ -185,12 +211,13 @@ int main( int argc, char* argv[] )
 			int kl = kill( -grpa, SIGCONT ); 
 		 	if( kl == -1 )
 			{
-				perror(" Kids did not wake up \n");
-			  	exit(EXIT_FAILURE);
+				perror(" Kids did not wake up #2 \n");
+			  	exit( EXIT_FAILURE );
 		 	}
 		}
 
-	}
+	} while( ilsc > 0 );
+
 	return 0;
 }
 //======================================================

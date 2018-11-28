@@ -19,7 +19,7 @@ int main( int argc, char* argv[] )
 	}
 	char* wsk;
 	float flt = strtof( argv[1], &wsk);
-	if( !wsk )
+	if( *wsk )
 	{
 		perror( "Conversion string to float did not succeed \n" );
 		exit( -1 );
